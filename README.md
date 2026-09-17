@@ -2,6 +2,8 @@
 
 A read-only executive dashboard for classes maintained in **K2K Data Tracker → Sheet5**. Built with Next.js, TypeScript, and the Google Sheets API, ready for Vercel's Node.js runtime.
 
+**Live dashboard:** https://classesviewk2k.vercel.app — connected directly to Google Sheets. Vercel production tracks `codex/k2k-executive-overview`. See [launch verification](docs/verification.md) for the validated source totals and deployment details.
+
 **No sign-in is required**, as requested. The dashboard and `/api/dashboard` endpoint are publicly readable, including class notes and source references. The spreadsheet itself need not be public. Runtime credentials stay on the server, and the application cannot edit the tracker. There is no enrollment system or second class database.
 
 ## Run locally
