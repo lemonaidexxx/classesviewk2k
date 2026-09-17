@@ -1,0 +1,16 @@
+node_modules/
+.next/
+out/
+coverage/
+playwright-report/
+test-results/
+.env*
+!.env.example
+.vercel/
+*.tsbuildinfo
+*.xlsx
+*.csv
+*.pem
+*.key
+private/
+artifacts/
