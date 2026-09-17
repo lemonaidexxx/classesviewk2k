@@ -25,10 +25,16 @@ function setupK2KTracker() {
     const width = Math.max(16, sheet.getLastColumn());
     if (sheet.getMaxColumns() < width)
       sheet.insertColumnsAfter(sheet.getMaxColumns(), width - sheet.getMaxColumns());
-    const headers = sheet.getRange(2, 1, 1, width).getDisplayValues()[0];
+    const leadingRows = sheet.getRange(1, 1, 2, width).getDisplayValues();
+    const headerIndex = leadingRows.findIndex((row) =>
+      row.some((value) => ['course', 'course name'].includes(k2kNormalize(value))),
+    );
+    if (headerIndex === -1) throw new Error('Expected a Course header on row 1 or row 2.');
+    const headerRow = headerIndex + 1;
+    const headers = leadingRows[headerIndex];
     const normalized = headers.map(k2kNormalize);
-    if (normalized.filter((v) => v === 'course').length !== 1)
-      throw new Error('Expected a unique Course header on row 2.');
+    if (normalized.filter((v) => ['course', 'course name'].includes(v)).length !== 1)
+      throw new Error('Expected a unique Course header on row ' + headerRow + '.');
     K2K_OPTIONAL_HEADERS.forEach((header) => {
       if (normalized.filter((v) => v === k2kNormalize(header)).length > 1)
         throw new Error('Duplicate header: ' + header);
@@ -36,11 +42,12 @@ function setupK2KTracker() {
     // Preflight existing supporting tables BEFORE performing any content writes.
     k2kValidateTab(book, 'Courses', ['Course ID', 'Course Name', 'Category', 'Active']);
     k2kValidateTab(book, 'Dashboard_Settings', ['Setting', 'Value']);
+    const reservedColumns = normalized.indexOf('notes') === 15 ? 17 : 16;
     const missing = K2K_OPTIONAL_HEADERS.filter((h) => normalized.indexOf(k2kNormalize(h)) === -1);
     if (missing.length) {
-      // getLastColumn examines the whole sheet, including content far below row 2.
-      // Always append after every used column AND legacy P; never fill a guessed gap.
-      const first = Math.max(16, sheet.getLastColumn()) + 1,
+      // getLastColumn examines the whole sheet, including content far below the header.
+      // Always append after every used column AND reserved notes columns; never fill a guessed gap.
+      const first = Math.max(reservedColumns, sheet.getLastColumn()) + 1,
         required = first + missing.length - 1;
       if (sheet.getMaxColumns() < required)
         sheet.insertColumnsAfter(sheet.getMaxColumns(), required - sheet.getMaxColumns());
@@ -50,25 +57,27 @@ function setupK2KTracker() {
         candidate.getFormulas().some((r) => r.some(Boolean))
       )
         throw new Error('Append range contains data or formulas. Stopping.');
-      sheet.getRange(2, first, 1, missing.length).setValues([missing]);
+      sheet.getRange(headerRow, first, 1, missing.length).setValues([missing]);
     }
-    const finalHeaders = sheet.getRange(2, 1, 1, sheet.getLastColumn()).getDisplayValues()[0];
+    const finalHeaders = sheet
+      .getRange(headerRow, 1, 1, sheet.getLastColumn())
+      .getDisplayValues()[0];
     const idColumn = finalHeaders.map(k2kNormalize).indexOf('class id') + 1;
     const rows = sheet.getDataRange().getDisplayValues();
     const seen = {},
       duplicates = [];
-    rows.slice(2).forEach((row, offset) => {
+    rows.slice(headerRow).forEach((row, offset) => {
       if (!k2kClassRow(row)) return;
       const current = String(row[idColumn - 1] || '').trim();
       if (current) {
-        if (seen[current]) duplicates.push(offset + 3);
+        if (seen[current]) duplicates.push(offset + headerRow + 1);
         seen[current] = true;
       }
     });
     let assigned = 0;
-    rows.slice(2).forEach((row, offset) => {
+    rows.slice(headerRow).forEach((row, offset) => {
       if (!k2kClassRow(row) || String(row[idColumn - 1] || '').trim()) return;
-      const cell = sheet.getRange(offset + 3, idColumn);
+      const cell = sheet.getRange(offset + headerRow + 1, idColumn);
       // Preserve formulas (even formulas displaying an empty string) and concurrent edits.
       if (cell.getFormula() || cell.getValue() !== '') return;
       let id;
@@ -98,9 +107,10 @@ function setupK2KTracker() {
       if (existingSettings.indexOf(pair[0]) === -1) settings.appendRow(pair);
     });
     const courseRange = courses.getRange(2, 2, Math.max(1, courses.getMaxRows() - 1), 1);
-    const courseColumn = finalHeaders.map(k2kNormalize).indexOf('course') + 1;
+    const courseColumn =
+      finalHeaders.findIndex((h) => ['course', 'course name'].includes(k2kNormalize(h))) + 1;
     sheet
-      .getRange(3, courseColumn, Math.max(1, sheet.getMaxRows() - 2), 1)
+      .getRange(headerRow + 1, courseColumn, Math.max(1, sheet.getMaxRows() - headerRow), 1)
       .setDataValidation(
         SpreadsheetApp.newDataValidation()
           .requireValueInRange(courseRange, true)
@@ -110,7 +120,7 @@ function setupK2KTracker() {
       );
     const archiveColumn = finalHeaders.map(k2kNormalize).indexOf('archived') + 1;
     sheet
-      .getRange(3, archiveColumn, Math.max(1, sheet.getMaxRows() - 2), 1)
+      .getRange(headerRow + 1, archiveColumn, Math.max(1, sheet.getMaxRows() - headerRow), 1)
       .setDataValidation(
         SpreadsheetApp.newDataValidation()
           .requireValueInList(['TRUE', 'FALSE'], true)

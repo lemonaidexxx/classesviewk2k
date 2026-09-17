@@ -18,7 +18,7 @@ const aliases: Record<string, string[]> = {
   municipality: ['municipality/ city', 'municipality/city', 'municipality / city'],
   enrollmentStart: ['enrollment start date'],
   enrollmentEnd: ['enrollment end date'],
-  plannedOpening: ['class opening', 'planned opening'],
+  plannedOpening: ['class opening', 'planned opening', 'projected class opening'],
   actualOpening: ['actual class opening'],
   projectedEnd: ['projected end of classes'],
   actualEnd: ['actual end of classes'],
@@ -55,17 +55,21 @@ export function columnLetter(n: number): string {
   for (n++; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
   return s;
 }
-export function headerMap(row: Cell[]): Record<string, number> {
+export function headerMap(row: Cell[], sourceRow = 2): Record<string, number> {
   const headers = row.map((c) => clean(text(c))),
     result: Record<string, number> = {};
   for (const [field, names] of Object.entries(aliases)) {
     const matches = headers.flatMap((h, i) => (names.includes(h) ? [i] : []));
-    if (matches.length > 1) throw new Error(`Duplicate header for ${field}; review Sheet5 row 2.`);
+    if (matches.length > 1)
+      throw new Error(`Duplicate header for ${field}; review Sheet5 row ${sourceRow}.`);
     if (matches.length) result[field] = matches[0];
   }
-  if (result.course === undefined) throw new Error('Sheet5 row 2 must contain the Course header.');
-  // The legacy unlabeled P column is an intentional, documented exception.
-  if (!headers[15]) result.additionalNotes = 15;
+  if (result.course === undefined)
+    throw new Error(`Sheet5 row ${sourceRow} must contain the Course header.`);
+  // Preserve the two documented layouts; explicit headers always take precedence.
+  const extraColumn = result.notes === 15 ? 16 : 15;
+  if (result.additionalNotes === undefined && !headers[extraColumn])
+    result.additionalNotes = extraColumn;
   return result;
 }
 export function inferStatus(record: ClassRecord, today: string): InferredStatus {
@@ -106,10 +110,14 @@ export function parseClasses(
   courses: Course[] = [],
   snapshotId = 'snapshot',
 ): ClassRecord[] {
-  const headers = headerMap(rows[1] ?? []);
-  let section = sectionLabel(rows[0] ?? []) ?? '';
+  const headerIndex = rows
+    .slice(0, 2)
+    .findIndex((row) => row.some((cell) => aliases.course.includes(clean(text(cell)))));
+  if (headerIndex === -1) throw new Error('Sheet5 must contain a Course header on row 1 or row 2.');
+  const headers = headerMap(rows[headerIndex], headerIndex + 1);
+  let section = headerIndex === 1 ? (sectionLabel(rows[0] ?? []) ?? '') : '';
   const records: ClassRecord[] = [];
-  for (let index = 2; index < rows.length; index++) {
+  for (let index = headerIndex + 1; index < rows.length; index++) {
     const row = rows[index] ?? [],
       label = sectionLabel(row);
     if (label) {

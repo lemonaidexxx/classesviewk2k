@@ -59,7 +59,7 @@ The optional `scripts/setup-sheet.gs` helper creates supporting tabs, appends op
 
 ## Data behavior
 
-- Headers are on row 2. Whitespace and documented aliases are supported, including `Training Institute ` and `Job Facilitarion`. Unlabeled P is Additional Notes. Section rows provide legacy categories; blank separators are ignored.
+- Headers are detected on row 1 or legacy row 2. Whitespace and documented aliases are supported, including `Training Institute ` and `Job Facilitarion`. Projected Class Opening is supported. When Notes is in P, unlabeled Q is Additional Notes; legacy unlabeled P remains supported. Explicit Additional Notes headers take precedence. Section rows provide legacy categories; blank separators are ignored.
 - Each class row remains separate. Missing/duplicate IDs are warnings, not reasons to merge or discard rows. Snapshot-local keys are not permanent identities.
 - Category precedence is explicit row → unambiguous linked Course ID category → section. Disagreements are flagged. Inactive catalog courses do not hide existing classes.
 - Counts must be nonnegative integers. Missing/invalid counts remain unknown and appear in coverage warnings. Explicit zero is valid. Participants are places, not unique learners.

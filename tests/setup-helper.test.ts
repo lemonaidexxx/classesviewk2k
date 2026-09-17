@@ -87,3 +87,62 @@ it('owner setup is repeatable, preserves P and existing IDs, and does not ID div
   expect(vm.runInContext('setupK2KTracker()', context).duplicateRows).toEqual([6]);
   expect(sheet.data[5][16]).toBe(id);
 });
+
+it.each(['Extra Q note', ''])(
+  'supports row-one headers and reserves Q even when empty (%s)',
+  (extra) => {
+    const headers = ['Course', 'Category', ...syntheticHeaders.slice(1, 15)];
+    const row = [
+      'Synthetic course',
+      'AI',
+      'Institute',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      0,
+      'Keep P',
+    ];
+    if (extra) row.push(extra);
+    const sheet = mockSheet([headers, row]);
+    const tabs: Record<string, ReturnType<typeof mockSheet>> = { Sheet5: sheet };
+    const validation = {
+      requireValueInRange: () => validation,
+      requireValueInList: () => validation,
+      setAllowInvalid: () => validation,
+      setHelpText: () => validation,
+      build: () => ({}),
+    };
+    let serial = 0;
+    const context = vm.createContext({
+      SpreadsheetApp: {
+        openById: () => ({
+          getSheetByName: (n: string) => tabs[n],
+          insertSheet: (n: string) => (tabs[n] = mockSheet([])),
+        }),
+        newDataValidation: () => validation,
+      },
+      LockService: { getScriptLock: () => ({ waitLock: () => {}, releaseLock: () => {} }) },
+      Utilities: { getUuid: () => `new-id-${++serial}` },
+      console: { log: () => {} },
+    });
+    vm.runInContext(script, context);
+    expect(vm.runInContext('setupK2KTracker()', context).assigned).toBe(1);
+    expect(sheet.data[0][17]).toBe('Class ID');
+    expect(sheet.data[0].filter((v) => v === 'Category')).toHaveLength(1);
+    expect(sheet.data[1][15]).toBe('Keep P');
+    expect(sheet.data[1][16] ?? '').toBe(extra);
+    expect(sheet.data[1][17]).toBe('new-id-1');
+    expect(vm.runInContext('setupK2KTracker()', context).assigned).toBe(0);
+    sheet.data.push([...row]);
+    expect(vm.runInContext('setupK2KTracker()', context).assigned).toBe(1);
+    expect(sheet.data[2][17]).toBe('new-id-2');
+  },
+);

@@ -176,3 +176,73 @@ describe('adapter and selectors', () => {
     }));
   it('adds days across year boundaries', () => expect(addDays('2026-12-31', 1)).toBe('2027-01-01'));
 });
+
+describe('current row-one layout', () => {
+  const headers = [syntheticHeaders[0], 'Category', ...syntheticHeaders.slice(1, 16), 'Class ID'];
+  headers[8] = 'Projected Class Opening';
+  const makeRow = (category: string, count: number | null) =>
+    cells([
+      'Updated synthetic course',
+      category,
+      'Synthetic institute',
+      '',
+      '',
+      '',
+      '20 Augut 2026',
+      '25 Septembef 2026',
+      'October 2026',
+      '3 November 2026',
+      '',
+      '28 November 0226',
+      '',
+      '',
+      count,
+      'Primary note',
+      'Extra note',
+      'duplicate-id',
+    ]);
+  it('maps shifted fields, preserves precision and references, and filters consistently', () => {
+    const records = parseClasses(
+      [cells(headers), makeRow('AI', 0), makeRow('Non-AI', null)],
+      '2026-09-17',
+    );
+    expect(records).toHaveLength(2);
+    expect(records[0]).toMatchObject({
+      sourceRow: 2,
+      category: 'AI',
+      notes: 'Primary note',
+      additionalNotes: 'Extra note',
+    });
+    expect(records[0].dates.plannedOpening).toMatchObject({
+      kind: 'month',
+      value: '2026-10',
+      cell: 'Sheet5!I2',
+    });
+    expect(records[0].participants).toMatchObject({ value: 0, cell: 'Sheet5!O2' });
+    expect(records[1].participants.value).toBeNull();
+    expect(records[0].warnings.filter((w) => w.code === 'invalid_date')).toHaveLength(3);
+    expect(records[0].warnings.some((w) => w.code === 'future_actual')).toBe(true);
+    expect(records.every((r) => r.warnings.some((w) => w.code === 'duplicate_id'))).toBe(true);
+    const filtered = filterClasses(records, {
+      ...defaultFilters,
+      category: 'AI',
+      from: '2026-10-15',
+      to: '2026-10-20',
+      includeUndated: false,
+    });
+    expect(summarize(filtered)).toMatchObject({ total: 1, participants: 0, unknownCounts: 0 });
+    expect(milestones(filtered, '2026-10-15', 10)).toHaveLength(1);
+  });
+  it('prefers a named Additional Notes column over either positional fallback', () => {
+    const named = [...headers, 'Additional Notes'];
+    const record = makeRow('AI', 1);
+    record.push(...cells(['Named note']));
+    expect(parseClasses([cells(named), record], '2026-09-17')[0].additionalNotes).toBe(
+      'Named note',
+    );
+  });
+  it('rejects missing and duplicate headers with the correct row', () => {
+    expect(() => parseClasses([cells(['Unrelated']), []], '2026-09-17')).toThrow('row 1 or row 2');
+    expect(() => parseClasses([cells([...headers, 'Course'])], '2026-09-17')).toThrow('row 1');
+  });
+});
