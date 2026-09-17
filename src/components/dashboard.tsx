@@ -1,10 +1,8 @@
 'use client';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
 import {
   ArrowDown,
   ArrowDownUp,
-  ArrowUpRight,
   CalendarDays,
   Check,
   ChevronLeft,
@@ -28,6 +26,7 @@ import {
 import { filterClasses, milestones, summarize } from '@/lib/selectors';
 import DetailDrawer from './detail-drawer';
 import Footer from './footer';
+import CourseCalendar from './course-calendar';
 
 type SortKey =
   | 'course'
@@ -96,6 +95,30 @@ export default function Dashboard({ previewSnapshot }: { previewSnapshot?: Dashb
   const [sort, setSort] = useState<{ key: SortKey; asc: boolean }>({ key: 'course', asc: true }),
     [page, setPage] = useState(0),
     [selected, setSelected] = useState<ClassRecord | null>(null);
+  const [view, setView] = useState<'table' | 'calendar'>('table');
+  const [visibleColumns, setVisibleColumns] = useState<SortKey[]>(columns.map((c) => c.key));
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      try {
+        const saved: unknown = JSON.parse(localStorage.getItem('k2k-columns-v1') ?? 'null');
+        if (Array.isArray(saved))
+          setVisibleColumns(
+            columns.filter((c) => c.key === 'course' || saved.includes(c.key)).map((c) => c.key),
+          );
+      } catch {
+        /* Storage may be unavailable; show all columns. */
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
+  const updateColumns = (next: SortKey[]) => {
+    setVisibleColumns(next);
+    try {
+      localStorage.setItem('k2k-columns-v1', JSON.stringify(next));
+    } catch {
+      /* Keep in-memory preferences. */
+    }
+  };
   const inflight = useRef(false),
     abort = useRef<AbortController | null>(null);
   const refresh = useCallback(
@@ -217,23 +240,6 @@ export default function Dashboard({ previewSnapshot }: { previewSnapshot?: Dashb
       <a href="#main" className="skip-link">
         Skip to overview
       </a>
-      <header className="topbar">
-        <Link className="brand" href="/" aria-label="K2K overview">
-          <span className="brand-mark">
-            k2k<span>↗</span>
-          </span>
-          <span className="brand-divider" />
-          <span>Executive workspace</span>
-        </Link>
-        <div className="account">
-          <span className="access-label">
-            <i /> {previewSnapshot ? 'Development preview' : 'Read-only overview'}
-          </span>
-          <span className="avatar" aria-hidden="true">
-            K2K
-          </span>
-        </div>
-      </header>
       <main id="main" className="main">
         {previewSnapshot && (
           <div className="preview-banner">
@@ -324,7 +330,7 @@ export default function Dashboard({ previewSnapshot }: { previewSnapshot?: Dashb
             <section className="metrics" aria-label="Executive summary">
               <article className="metric">
                 <div className="metric-label">
-                  Total classes <span className="metric-symbol">↗</span>
+                  Total classes
                 </div>
                 <div className="metric-value">{number(totals.total)}</div>
                 <p>
@@ -370,7 +376,7 @@ export default function Dashboard({ previewSnapshot }: { previewSnapshot?: Dashb
                   onClick={() => change('reviewOnly', !filters.reviewOnly)}
                 >
                   {filters.reviewOnly ? 'Show all classes' : 'Review missing or conflicting data'}{' '}
-                  <ArrowUpRight size={14} />
+                  <ChevronRight size={14} />
                 </button>
               </article>
             </section>
@@ -402,6 +408,53 @@ export default function Dashboard({ previewSnapshot }: { previewSnapshot?: Dashb
                   <SlidersHorizontal size={14} /> {expanded ? 'Fewer filters' : 'More filters'}{' '}
                   {activeFilters > 0 && <span className="count-pill">{activeFilters}</span>}
                 </button>
+              </div>
+              <div className="view-controls">
+                <div className="view-switch" role="group" aria-label="Class view">
+                  <button aria-pressed={view === 'table'} onClick={() => setView('table')}>
+                    Table view
+                  </button>
+                  <button aria-pressed={view === 'calendar'} onClick={() => setView('calendar')}>
+                    Calendar view
+                  </button>
+                </div>
+                {view === 'table' && (
+                  <details className="column-picker">
+                    <summary>
+                      Columns{' '}
+                      <span>
+                        {visibleColumns.length} / {columns.length}
+                      </span>
+                    </summary>
+                    <fieldset>
+                      <legend>Visible columns</legend>
+                      {columns.map((c) => (
+                        <label key={c.key}>
+                          <input
+                            type="checkbox"
+                            checked={visibleColumns.includes(c.key)}
+                            disabled={c.key === 'course'}
+                            onChange={(e) =>
+                              updateColumns(
+                                e.target.checked
+                                  ? [...visibleColumns, c.key]
+                                  : visibleColumns.filter((key) => key !== c.key),
+                              )
+                            }
+                          />
+                          {c.title}
+                          {c.key === 'course' ? ' (always shown)' : ''}
+                        </label>
+                      ))}
+                      <button
+                        className="button"
+                        onClick={() => updateColumns(columns.map((c) => c.key))}
+                      >
+                        Show all columns
+                      </button>
+                    </fieldset>
+                  </details>
+                )}
               </div>
               <div className="filters">
                 <label className="search-field">
@@ -496,151 +549,187 @@ export default function Dashboard({ previewSnapshot }: { previewSnapshot?: Dashb
                   )}
                 </div>
               )}
-              <div
-                className="table-scroll"
-                role="region"
-                aria-label="Class table; scroll horizontally for all fields"
-                tabIndex={0}
-              >
-                <table>
-                  <thead>
-                    <tr>
-                      {columns.map((c) => (
-                        <th
-                          key={c.key}
-                          aria-sort={
-                            sort.key === c.key ? (sort.asc ? 'ascending' : 'descending') : 'none'
-                          }
-                        >
-                          <button
-                            onClick={() => {
-                              setSort((s) => ({
-                                key: c.key,
-                                asc: s.key === c.key ? !s.asc : true,
-                              }));
-                              setPage(0);
-                            }}
-                          >
-                            {c.title}
-                            {sort.key === c.key ? (
-                              <ArrowDown
-                                size={12}
-                                style={{ transform: sort.asc ? 'rotate(180deg)' : undefined }}
-                              />
-                            ) : (
-                              <ArrowDownUp size={11} />
-                            )}
-                          </button>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {displayed.map((r) => (
-                      <tr key={r.key}>
-                        <td>
-                          <button className="course-button" onClick={() => setSelected(r)}>
-                            {r.course || 'Course not recorded'}
-                            <ArrowUpRight size={14} />
-                          </button>
-                          <span className="row-caption">
-                            {r.classId || `Source row ${r.sourceRow}`}
-                            {r.warnings.length > 0 && (
-                              <span className="review-indicator">
-                                <AlertCircle size={11} />
-                                {r.warnings.length} checks
+              {view === 'calendar' ? (
+                <CourseCalendar
+                  records={filtered}
+                  today={snapshot.reportingDate}
+                  onSelect={setSelected}
+                />
+              ) : (
+                <>
+                  <div
+                    className="table-scroll"
+                    role="region"
+                    aria-label="Class table; scroll horizontally for all fields"
+                    tabIndex={0}
+                  >
+                    <table>
+                      <thead>
+                        <tr>
+                          {columns
+                            .filter((c) => visibleColumns.includes(c.key))
+                            .map((c) => (
+                              <th
+                                key={c.key}
+                                aria-sort={
+                                  sort.key === c.key
+                                    ? sort.asc
+                                      ? 'ascending'
+                                      : 'descending'
+                                    : 'none'
+                                }
+                              >
+                                <button
+                                  onClick={() => {
+                                    setSort((s) => ({
+                                      key: c.key,
+                                      asc: s.key === c.key ? !s.asc : true,
+                                    }));
+                                    setPage(0);
+                                  }}
+                                >
+                                  {c.title}
+                                  {sort.key === c.key ? (
+                                    <ArrowDown
+                                      size={12}
+                                      style={{ transform: sort.asc ? 'rotate(180deg)' : undefined }}
+                                    />
+                                  ) : (
+                                    <ArrowDownUp size={11} />
+                                  )}
+                                </button>
+                              </th>
+                            ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {displayed.map((r) => (
+                          <tr key={r.key}>
+                            <td>
+                              <button className="course-button" onClick={() => setSelected(r)}>
+                                {r.course || 'Course not recorded'}
+                                <ChevronRight size={14} />
+                              </button>
+                              <span className="row-caption">
+                                {r.classId || `Source row ${r.sourceRow}`}
+                                {r.warnings.length > 0 && (
+                                  <span className="review-indicator">
+                                    <AlertCircle size={11} />
+                                    {r.warnings.length} checks
+                                  </span>
+                                )}
                               </span>
-                            )}
-                          </span>
-                        </td>
-                        <td className="institute-cell">
-                          {r.institution || <span className="muted">Not recorded</span>}
-                        </td>
-                        <td>
-                          <span className={`category ${r.category === 'AI' ? 'ai' : ''}`}>
-                            {r.category}
-                          </span>
-                        </td>
-                        <td>{r.region || '—'}</td>
-                        <td>{r.province || '—'}</td>
-                        <td>{r.municipality || '—'}</td>
-                        <td>{r.batch || '—'}</td>
-                        <td className="number-cell">
-                          {r.participants.value === null ? (
-                            <span className="unknown">Unknown</span>
-                          ) : (
-                            number(r.participants.value)
-                          )}
-                        </td>
-                        {(
-                          ['plannedOpening', 'actualOpening', 'projectedEnd', 'actualEnd'] as const
-                        ).map((f) => (
-                          <td key={f}>
-                            <span className={r.dates[f].kind === 'invalid' ? 'invalid-value' : ''}>
-                              {displayDate(r.dates[f])}
-                            </span>
-                            {r.dates[f].kind === 'month' && (
-                              <small className="cell-note">Month only</small>
-                            )}
-                          </td>
+                            </td>
+                            <td
+                              hidden={!visibleColumns.includes('institution')}
+                              className="institute-cell"
+                            >
+                              {r.institution || <span className="muted">Not recorded</span>}
+                            </td>
+                            <td hidden={!visibleColumns.includes('category')}>
+                              <span className={`category ${r.category === 'AI' ? 'ai' : ''}`}>
+                                {r.category}
+                              </span>
+                            </td>
+                            <td hidden={!visibleColumns.includes('region')}>{r.region || '—'}</td>
+                            <td hidden={!visibleColumns.includes('province')}>
+                              {r.province || '—'}
+                            </td>
+                            <td hidden={!visibleColumns.includes('municipality')}>
+                              {r.municipality || '—'}
+                            </td>
+                            <td hidden={!visibleColumns.includes('batch')}>{r.batch || '—'}</td>
+                            <td
+                              hidden={!visibleColumns.includes('participants')}
+                              className="number-cell"
+                            >
+                              {r.participants.value === null ? (
+                                <span className="unknown">Unknown</span>
+                              ) : (
+                                number(r.participants.value)
+                              )}
+                            </td>
+                            {(
+                              [
+                                'plannedOpening',
+                                'actualOpening',
+                                'projectedEnd',
+                                'actualEnd',
+                              ] as const
+                            ).map((f) => (
+                              <td key={f} hidden={!visibleColumns.includes(f)}>
+                                <span
+                                  className={r.dates[f].kind === 'invalid' ? 'invalid-value' : ''}
+                                >
+                                  {displayDate(r.dates[f])}
+                                </span>
+                                {r.dates[f].kind === 'month' && (
+                                  <small className="cell-note">Month only</small>
+                                )}
+                              </td>
+                            ))}
+                            <td hidden={!visibleColumns.includes('status')}>
+                              <Status record={r} />
+                            </td>
+                          </tr>
                         ))}
-                        <td>
-                          <Status record={r} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              {displayed.length === 0 && (
-                <div className="empty-state">
-                  <Search size={25} />
-                  <h3>
-                    {snapshot.classes.length
-                      ? 'No classes match this view'
-                      : 'No classes recorded yet'}
-                  </h3>
-                  <p>
-                    {snapshot.classes.length
-                      ? 'Adjust your filters or reset to see active classes.'
-                      : 'Add a class row in Sheet5, then refresh this overview.'}
-                  </p>
-                  {activeFilters > 0 && (
-                    <button className="button" onClick={() => setFilters({ ...defaultFilters })}>
-                      Reset filters
-                    </button>
+                      </tbody>
+                    </table>
+                  </div>
+                  {displayed.length === 0 && (
+                    <div className="empty-state">
+                      <Search size={25} />
+                      <h3>
+                        {snapshot.classes.length
+                          ? 'No classes match this view'
+                          : 'No classes recorded yet'}
+                      </h3>
+                      <p>
+                        {snapshot.classes.length
+                          ? 'Adjust your filters or reset to see active classes.'
+                          : 'Add a class row in Sheet5, then refresh this overview.'}
+                      </p>
+                      {activeFilters > 0 && (
+                        <button
+                          className="button"
+                          onClick={() => setFilters({ ...defaultFilters })}
+                        >
+                          Reset filters
+                        </button>
+                      )}
+                    </div>
                   )}
-                </div>
+                  <div className="table-footer">
+                    <span>
+                      {sorted.length
+                        ? `${currentPage * 10 + 1}–${Math.min(currentPage * 10 + 10, sorted.length)} of ${sorted.length} classes`
+                        : '0 classes'}
+                      <span className="table-hint"> · Scroll for schedule and status →</span>
+                    </span>
+                    <div>
+                      <button
+                        aria-label="Previous page"
+                        disabled={currentPage === 0}
+                        onClick={() => setPage(currentPage - 1)}
+                        className="icon-button"
+                      >
+                        <ChevronLeft size={16} />
+                      </button>
+                      <span>
+                        {currentPage + 1} / {Math.max(1, Math.ceil(sorted.length / 10))}
+                      </span>
+                      <button
+                        aria-label="Next page"
+                        disabled={(currentPage + 1) * 10 >= sorted.length}
+                        onClick={() => setPage(currentPage + 1)}
+                        className="icon-button"
+                      >
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
+                  </div>
+                </>
               )}
-              <div className="table-footer">
-                <span>
-                  {sorted.length
-                    ? `${currentPage * 10 + 1}–${Math.min(currentPage * 10 + 10, sorted.length)} of ${sorted.length} classes`
-                    : '0 classes'}
-                  <span className="table-hint"> · Scroll for schedule and status →</span>
-                </span>
-                <div>
-                  <button
-                    aria-label="Previous page"
-                    disabled={currentPage === 0}
-                    onClick={() => setPage(currentPage - 1)}
-                    className="icon-button"
-                  >
-                    <ChevronLeft size={16} />
-                  </button>
-                  <span>
-                    {currentPage + 1} / {Math.max(1, Math.ceil(sorted.length / 10))}
-                  </span>
-                  <button
-                    aria-label="Next page"
-                    disabled={(currentPage + 1) * 10 >= sorted.length}
-                    onClick={() => setPage(currentPage + 1)}
-                    className="icon-button"
-                  >
-                    <ChevronRight size={16} />
-                  </button>
-                </div>
-              </div>
             </section>
             <section className="bottom-grid">
               <article className="panel milestone-panel">
@@ -672,7 +761,7 @@ export default function Dashboard({ previewSnapshot }: { previewSnapshot?: Dashb
                           {e.date.kind === 'month' ? ' · month only' : ''}
                         </small>
                       </span>
-                      <ArrowUpRight size={14} />
+                      <ChevronRight size={14} />
                     </button>
                   ))}
                   {events.length === 0 && (

@@ -6,6 +6,12 @@ A read-only executive dashboard for classes maintained in **K2K Data Tracker →
 
 **No sign-in is required**, as requested. The dashboard and `/api/dashboard` endpoint are publicly readable, including class notes and source references. The spreadsheet itself need not be public. Runtime credentials stay on the server, and the application cannot edit the tracker. There is no enrollment system or second class database.
 
+## Views and display preferences
+
+Use **Columns** above the table to show or hide fields. Your selection is stored in this browser; the course column stays visible so class details remain accessible. **Show all columns** restores the full table.
+
+Switch to **Calendar view** to browse courses by month. **Calendar date** chooses the schedule field (planned opening by default). The calendar shares all dashboard filters and opens the same class details. Month-only dates appear below the grid without an invented day; undated or invalid values remain available in a separate list. Phones show the calendar as a daily agenda.
+
 ## Run locally
 
 Use Node.js 24 LTS and npm:

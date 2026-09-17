@@ -1,4 +1,32 @@
 import { expect, test } from '@playwright/test';
+test('column preferences persist and calendar shares filters and opens details', async ({
+  page,
+}, info) => {
+  await page.goto('/preview');
+  await expect(page.locator('.topbar')).toHaveCount(0);
+  await expect(page.getByText('Better visibility. Better decisions.')).toHaveCount(0);
+  await page.locator('.column-picker summary').click();
+  await page.getByRole('checkbox', { name: 'Province', exact: true }).uncheck();
+  await expect(page.getByRole('columnheader', { name: 'Province', exact: true })).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('columnheader', { name: 'Province', exact: true })).toHaveCount(0);
+  await page.locator('.column-picker summary').click();
+  await page.getByRole('button', { name: 'Show all columns' }).click();
+  await expect(page.getByRole('columnheader', { name: 'Province', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Calendar view', exact: true }).click();
+  await page.getByRole('combobox', { name: 'Categories', exact: true }).selectOption('AI');
+  await expect(page.locator('.metric-value').first()).toHaveText('8');
+  await expect(page.locator('.course-event')).toHaveCount(8);
+  await page.locator('.course-event').first().click();
+  await expect(page.getByRole('dialog')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).not.toBeVisible();
+  await page.getByRole('button', { name: 'Next month' }).click();
+  await expect(page.getByRole('status')).toContainText('No courses');
+  await page.getByRole('button', { name: 'This month' }).click();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth)).toBe(false);
+  await page.screenshot({ path: `artifacts/${info.project.name}-calendar.png`, fullPage: true });
+});
 test('dashboard needs no sign-in and missing source config is explicit', async ({
   page,
   request,

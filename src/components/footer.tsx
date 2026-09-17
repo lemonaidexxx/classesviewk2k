@@ -1,6 +1,5 @@
 'use client';
 import { useEffect, useRef } from 'react';
-import { ArrowUpRight } from 'lucide-react';
 export default function Footer() {
   const ref = useRef<HTMLElement>(null);
   useEffect(() => {
@@ -65,15 +64,7 @@ export default function Footer() {
   return (
     <footer ref={ref} className="footer">
       <div className="footer-gradient" aria-hidden="true" />
-      <div>
-        <span className="brand-mark small">
-          k2k<span>↗</span>
-        </span>
-        <span className="footer-copy">Better visibility. Better decisions.</span>
-      </div>
-      <span>
-        Maintained in Google Sheets <ArrowUpRight size={14} />
-      </span>
+      <span>Maintained in Google Sheets</span>
     </footer>
   );
 }
