@@ -1504,6 +1504,14 @@ tbody tr:hover {
 .skip-link:focus {
   transform: translateY(0);
 }
+.skip-link:not(:focus-visible) {
+  clip-path: inset(50%);
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
 .page-heading p {
   font-size: 13px;
 }
